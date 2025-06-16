@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  node1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-node1
+    environment:
+      NODE_ID: node1
+      # Cấu hình các peer khác. Có thể truyền dưới dạng biến môi trường hoặc file config
+      PEERS: node2:50051,node3:50051
+      # Nếu dùng Leader tĩnh
+      IS_LEADER: "true" # Chỉ node1 là leader ban đầu
+      PORT: 50051
+      DATA_DIR: /app/data
+      LOG_LEVEL: info
+    ports:
+      - "50051:50051" # Cổng gRPC/HTTP
+      - "8080:8080"   # Cổng API/CLI nếu có
+    volumes:
+      - node1_data:/app/data # Để LevelDB lưu dữ liệu liên tục
+    networks:
+      - blockchain-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/data/blockchain.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  node2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-node2
+    environment:
+      NODE_ID: node2
+      PEERS: node1:50051,node3:50051
+      IS_LEADER: "false"
+      PORT: 50051
+      DATA_DIR: /app/data
+      LOG_LEVEL: info
+    ports:
+      - "50052:50051"
+      - "8081:8080"
+    volumes:
+      - node2_data:/app/data
+    networks:
+      - blockchain-network
+    restart: unless-stopped
+    depends_on:
+      - node1
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/data/blockchain.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  node3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-node3
+    environment:
+      NODE_ID: node3
+      PEERS: node1:50051,node2:50051
+      IS_LEADER: "false"
+      PORT: 50051
+      DATA_DIR: /app/data
+      LOG_LEVEL: info
+    ports:
+      - "50053:50051"
+      - "8082:8080"
+    volumes:
+      - node3_data:/app/data
+    networks:
+      - blockchain-network
+    restart: unless-stopped
+    depends_on:
+      - node1
+    healthcheck:
+      test: ["CMD", "test", "-f", "/app/data/blockchain.db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # Optional: CLI container for easy interaction
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain-cli
+    entrypoint: ["./go-blockchain-cli"]
+    command: ["help"]
+    volumes:
+      - ./wallets:/app/wallets  # For wallet files
+    networks:
+      - blockchain-network
+    profiles:
+      - tools  # Only start when explicitly requested
+
+volumes:
+  node1_data:
+    driver: local
+  node2_data:
+    driver: local
+  node3_data:
+    driver: local
+
+networks:
+  blockchain-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16 

@@ -137,8 +137,8 @@ docker-compose --profile tools run --rm cli show-blockchain
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd golang-blockchain
+git clone https://github.com/hoanghnt/go-blockchain.git
+cd go-blockchain
 
 # Install dependencies
 go mod download
